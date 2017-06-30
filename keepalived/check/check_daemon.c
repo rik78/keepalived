@@ -253,7 +253,6 @@ reload_check_thread(__attribute__((unused)) thread_t * thread)
 	thread_cleanup_master(master);
 	free_global_data(global_data);
 
-	//free_checkers_queue();
 	/* Save previous checkers queue */
 	old_checkers_queue = checkers_queue;
 	checkers_queue = NULL;

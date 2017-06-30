@@ -714,6 +714,7 @@ rs_exist(real_server_t * old_rs, list l)
 	return NULL;
 }
 
+/* Compare checker_t structure */
 static int
 checker_equal(checker_t * a, checker_t * b)
 {
@@ -758,6 +759,7 @@ checker_equal(checker_t * a, checker_t * b)
     return 0;
 }
 
+/* Search checker id in new checkers_queue */
 static int
 find_new_checker_id(checker_id_t old_id, checker_id_t** new_id)
 {
@@ -831,12 +833,9 @@ clear_diff_rs(virtual_server_t * old_vs, list new_rs_list)
 				free_list_elements(new_rs->failed_checkers);
 			} else {
 				/*
-				 * if not alive, we must copy the failed checker list
-				 * If we do not, the new RS is in a state where it’s reported
-				 * as down with no check failed. As a result, the server will never
-				 * be put up back when it’s alive again in check_tcp.c#83 because
-				 * of the check that put a rs up only if it was not previously up
-				 * based on the failed_checkers list
+				 * if not alive, we must find the failed checker id in new confuiguration
+				 * and append it to new rs failed checkers list otherwise don't add it
+                 * to the new list. If no checker is added mark the new rs alive.
 				 */
 				element hc_e;
 				list hc_l = rs->failed_checkers;
@@ -846,15 +845,24 @@ clear_diff_rs(virtual_server_t * old_vs, list new_rs_list)
 				for (hc_e = LIST_HEAD(hc_l); hc_e; ELEMENT_NEXT(hc_e)) {
 
                     checker_id_t *newid;
-                    if (find_new_checker_id(*(checker_id_t *)ELEMENT_DATA(hc_e), &newid))
+                    checker_id_t oldid;
+                    oldid = *(checker_id_t *)ELEMENT_DATA(hc_e);
+                    if (find_new_checker_id(oldid, &newid))
                     {
 					    list_add(new_hc_l, newid);
 					    ELEMENT_DATA(hc_e) = NULL;
                         num_added++;
                     }
+                    else
+                    {
+			            log_message(LOG_INFO, "checker id %d no longer exist", oldid);
+                    }
 				}
-                if (num_added == 0) new_rs->alive = 1;
-
+                if (num_added == 0)
+                {
+                    log_message(LOG_INFO, "forcing rs %s up after reload", inet_sockaddrtopair(&(new_rs->addr)));
+                    SET_ALIVE(new_rs);
+                }
 			}
 		}
 	}
