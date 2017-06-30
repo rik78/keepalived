@@ -44,6 +44,7 @@
 /* Global vars */
 static checker_id_t ncheckers = 0;
 list checkers_queue;
+list old_checkers_queue;
 
 /* free checker data */
 static void

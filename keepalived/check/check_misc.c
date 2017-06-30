@@ -40,7 +40,7 @@
 #include "global_data.h"
 #include "global_parser.h"
 
-static int misc_check_thread(thread_t *);
+int misc_check_thread(thread_t *);
 static int misc_check_child_thread(thread_t *);
 static int misc_check_child_timeout_thread(thread_t *);
 
@@ -210,7 +210,7 @@ check_misc_script_security(void)
 	return script_flags;
 }
 
-static int
+int
 misc_check_thread(thread_t * thread)
 {
 	checker_t *checker;

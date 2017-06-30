@@ -46,5 +46,6 @@ typedef struct _misc_checker {
 /* Prototypes defs */
 extern void install_misc_check_keyword(void);
 extern int check_misc_script_security(void);
+extern int misc_check_thread(thread_t *);
 
 #endif

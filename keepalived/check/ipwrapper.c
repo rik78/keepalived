@@ -25,6 +25,7 @@
 #include "ipwrapper.h"
 #include "ipvswrapper.h"
 #include "check_api.h"
+#include "check_misc.h"
 #include "logger.h"
 #include "memory.h"
 #include "utils.h"
@@ -34,7 +35,7 @@
   #include "check_snmp.h"
 #endif
 #include "global_data.h"
-
+#include "list.h"
 /* out-of-order functions declarations */
 static void update_quorum_state(virtual_server_t * vs);
 
@@ -713,6 +714,80 @@ rs_exist(real_server_t * old_rs, list l)
 	return NULL;
 }
 
+static int
+checker_equal(checker_t * a, checker_t * b)
+{
+
+    if (a->launch != b->launch)
+        return 0;
+
+    /*if (a->launch == smtp_connect_thread)
+    {
+        smtp_check_t *ca = ( smtp_check_t *) (a->data);
+        smtp_check_t *cb = ( smtp_check_t *) (b->data);
+        if (strcmp(ca->helo_name, cb->helo_name)==0 &&
+            ca->db_retry == cb->db_retry &&
+            ca->retry == cb->retry &&
+            memcmp(ca->host_ptr, cb->host_ptr, sizeof(smtp_host_t)) == 0 &&
+            memcmp(ca->default_co, cb->default_co, sizeof(conn_opts_t)) == 0)
+            return 1;
+    }
+    
+    if (a->launch == tcp_connect_thread)
+    {
+         tcp_check_t *ca = ( tcp_check_t *) (a->data);
+         tcp_check_t *cb = ( tcp_check_t *) (b->data);
+         if (ca->delay_before_retry == cb->delay_before_retry &&
+            memcmp(a->co, b->co, sizeof(conn_opts_t)) == 0)
+           return 1;
+    }*/
+
+    if (a->launch == misc_check_thread)
+    {
+        misc_checker_t *ca = (misc_checker_t *) (a->data);
+        misc_checker_t *cb = (misc_checker_t *) (b->data);
+        if (ca->timeout == cb->timeout &&
+            ca->dynamic == cb->dynamic &&
+            ca->uid == cb->uid &&
+            ca->gid == cb->gid &&
+            ca->insecure == cb->insecure &&
+            strcmp(ca->path, cb->path) == 0)
+            return 1;
+    }
+    
+    return 0;
+}
+
+static int
+find_new_checker_id(checker_id_t old_id, checker_id_t** new_id)
+{
+    checker_t * old_checker = NULL;
+    list l = old_checkers_queue;
+    element e;
+    for (e = LIST_HEAD(l); e; ELEMENT_NEXT(e)) {
+        checker_t *checker = ELEMENT_DATA(e);
+        if (checker->id == old_id)
+        {
+            old_checker = checker;
+            break;
+        }
+    }
+
+    if (old_checker == NULL) return 0;
+
+    l = checkers_queue;
+    for (e = LIST_HEAD(l); e; ELEMENT_NEXT(e)) {
+        checker_t *checker = ELEMENT_DATA(e);
+        if (checker_equal(checker, old_checker)) {
+            *new_id = (checker_id_t *) MALLOC(sizeof(checker_id_t));
+            **new_id = checker->id;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* Clear the diff rs of the old vs */
 static void
 clear_diff_rs(virtual_server_t * old_vs, list new_rs_list)
@@ -766,10 +841,20 @@ clear_diff_rs(virtual_server_t * old_vs, list new_rs_list)
 				element hc_e;
 				list hc_l = rs->failed_checkers;
 				list new_hc_l = new_rs->failed_checkers;
+                int num_added = 0;
+
 				for (hc_e = LIST_HEAD(hc_l); hc_e; ELEMENT_NEXT(hc_e)) {
-					list_add(new_hc_l, ELEMENT_DATA(hc_e));
-					ELEMENT_DATA(hc_e) = NULL;
+
+                    checker_id_t *newid;
+                    if (find_new_checker_id(*(checker_id_t *)ELEMENT_DATA(hc_e), &newid))
+                    {
+					    list_add(new_hc_l, newid);
+					    ELEMENT_DATA(hc_e) = NULL;
+                        num_added++;
+                    }
 				}
+                if (num_added == 0) new_rs->alive = 1;
+
 			}
 		}
 	}
